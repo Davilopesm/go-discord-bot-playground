@@ -26,12 +26,15 @@ func handleMonsters(session *discordgo.Session, message *discordgo.MessageCreate
 
 	// Get a monster as embbed message
 	if strings.ToLower(messageArguments[1]) == "monster" {
-		monsterNames := []string{
-			"Gloom Wolf", "Scarab", "Demonic Crawler", "Poison Spider", "Undead Warrior", "Grim Reaper", "Death Worm", "Efreet", "Lava Lurcher", "Serpent Spawn",
-			"Blood Beast", "Banshee", "Ghoul", "Skeleton Warrior", "Giant Rat", "Ice Golem", "Fire Elemental", "Demonic Hydra", "Dragon Hatchling", "Dwarven Sentinel",
-			"Gargoyle", "Lich", "Orcish Brute", "Pirate Captain", "Troll", "Skeleton", "Vampire", "War Wolf",
-			"Barbed Creeper", "Blood Crab", "Dark Torturer", "Efreeti Fire Elemental", "Giant Spider", "Grim Spectre", "Lava Lurker", "Serpent Spawn",
-			"Carrion Bird", "Spectre", "Deathbringer", "Demon", "Fleshcrawler",
+		fileContent, err := os.ReadFile("monsters.json")
+		if err != nil {
+			log.Fatal("Error reading file")
+		}
+
+		var monsterNames []string
+		err = json.Unmarshal(fileContent, &monsterNames)
+		if err != nil {
+			log.Fatal("Error decoding JSON:", err)
 		}
 
 		author := discordgo.MessageEmbedAuthor{
