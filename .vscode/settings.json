@@ -1,0 +1,7 @@
+{
+  "go.formatTool": "goimports",
+  "go.formatOnSave": true,
+  "go.toolsManagement.autoUpdate": true,
+  "go.vetOnSave": "package",
+  "editor.formatOnSave": true,
+}

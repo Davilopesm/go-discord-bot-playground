@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -15,6 +17,88 @@ import (
 
 const prefix string = "!mybot"
 
+type Activity struct {
+	Activity string `json:"activity"`
+}
+
+func handleMonsters(session *discordgo.Session, message *discordgo.MessageCreate, messageArguments []string) {
+	// Switch case looking to weird here as I do not wanna add more funcs
+
+	// Get a monster as embbed message
+	if strings.ToLower(messageArguments[1]) == "monster" {
+		monsterNames := []string{
+			"Gloom Wolf", "Scarab", "Demonic Crawler", "Poison Spider", "Undead Warrior", "Grim Reaper", "Death Worm", "Efreet", "Lava Lurcher", "Serpent Spawn",
+			"Blood Beast", "Banshee", "Ghoul", "Skeleton Warrior", "Giant Rat", "Ice Golem", "Fire Elemental", "Demonic Hydra", "Dragon Hatchling", "Dwarven Sentinel",
+			"Gargoyle", "Lich", "Orcish Brute", "Pirate Captain", "Troll", "Skeleton", "Vampire", "War Wolf",
+			"Barbed Creeper", "Blood Crab", "Dark Torturer", "Efreeti Fire Elemental", "Giant Spider", "Grim Spectre", "Lava Lurker", "Serpent Spawn",
+			"Carrion Bird", "Spectre", "Deathbringer", "Demon", "Fleshcrawler",
+		}
+
+		author := discordgo.MessageEmbedAuthor{
+			Name: "CipSoft",
+			URL:  "https://tibia.com",
+		}
+		embed := discordgo.MessageEmbed{
+			Title:  monsterNames[rand.Intn(len(monsterNames))],
+			Author: &author,
+		}
+
+		if _, err := session.ChannelMessageSendEmbed(message.ChannelID, &embed); err != nil {
+			log.Println("Error sending embed message:", err)
+		}
+	}
+
+	// Get all monsters
+	if strings.ToLower(messageArguments[1]) == "monsters" {
+		fileContent, err := os.ReadFile("monsters.json")
+		if err != nil {
+			log.Fatal("Error reading file")
+		}
+
+		var data []string
+		err = json.Unmarshal(fileContent, &data)
+		if err != nil {
+			log.Fatal("Error decoding JSON:", err)
+		}
+
+		var items strings.Builder
+		for _, element := range data {
+			items.WriteString("\n" + element)
+		}
+
+		if _, err := session.ChannelMessageSend(message.ChannelID, items.String()); err != nil {
+			log.Fatal("Error sending message:", err)
+		}
+	}
+
+	// Create a monster
+	if strings.ToLower(messageArguments[1]) == "addmonster" {
+		monster := messageArguments[2]
+		fileContent, err := os.ReadFile("monsters.json")
+		if err != nil {
+			log.Fatal("Error reading file")
+		}
+
+		var data []string
+		err = json.Unmarshal(fileContent, &data)
+		if err != nil {
+			log.Fatal("Error decoding JSON:", err)
+		}
+
+		data = append(data, monster)
+
+		dataBytes, err := json.Marshal(data)
+		if err != nil {
+			log.Fatal("Error decoding JSON:", err)
+		}
+		_ = os.WriteFile("monsters.json", dataBytes, 0644)
+
+		if _, err := session.ChannelMessageSend(message.ChannelID, fmt.Sprintf("Monster %s added", monster)); err != nil {
+			log.Fatal("Error sending message:", err)
+		}
+	}
+}
+
 func main() {
 	godotenv.Load()
 	token := os.Getenv("APP_TOKEN")
@@ -25,7 +109,7 @@ func main() {
 		log.Fatal(failedConnection)
 	}
 
-	discordConnection.AddHandler(func (session *discordgo.Session, message *discordgo.MessageCreate) {
+	discordConnection.AddHandler(func(session *discordgo.Session, message *discordgo.MessageCreate) {
 		if message.Author.ID == session.State.User.ID {
 			return
 		}
@@ -36,33 +120,29 @@ func main() {
 			return
 		}
 
+		// Consume API and transform response
+		if strings.ToLower(messageArguments[1]) == "bored" {
 
-		if messageArguments[1] == "Hello" {
-			session.ChannelMessageSend(message.ChannelID, "World!")
+			resp, err := http.Get("https://www.boredapi.com/api/activity")
+			if err != nil {
+				log.Fatal("Error getting ideas", err)
+			}
+			defer resp.Body.Close()
+
+			var activity Activity
+			err = json.NewDecoder(resp.Body).Decode(&activity)
+			if err != nil {
+				log.Fatal("Error decoding JSON:", err)
+			}
+
+			if _, err := session.ChannelMessageSend(message.ChannelID, activity.Activity); err != nil {
+				log.Fatal("Error sending message:", err)
+			}
 		}
 
-
-		if strings.ToLower(messageArguments[1]) == "monster" {
-			monsterNames := []string{
-				"Gloom Wolf", "Scarab", "Demonic Crawler", "Poison Spider", "Undead Warrior", "Grim Reaper", "Death Worm", "Efreet", "Lava Lurcher", "Serpent Spawn",
-				"Blood Beast", "Banshee", "Ghoul", "Skeleton Warrior", "Giant Rat", "Ice Golem", "Fire Elemental", "Demonic Hydra", "Dragon Hatchling", "Dwarven Sentinel",
-				"Gargoyle", "Lich", "Orcish Brute", "Pirate Captain", "Troll", "Skeleton", "Vampire", "War Wolf",
-				"Barbed Creeper", "Blood Crab", "Dark Torturer", "Efreeti Fire Elemental", "Giant Spider", "Grim Spectre", "Lava Lurker", "Serpent Spawn",
-				"Carrion Bird", "Spectre", "Deathbringer", "Demon", "Fleshcrawler",
-			}
-
-			author := discordgo.MessageEmbedAuthor{
-				Name: "CipSoft",
-				URL: "https://tibia.com",
-			}
-			embed := discordgo.MessageEmbed{
-				Title: monsterNames[rand.Intn(len(monsterNames))],
-				Author: &author,
-			}
-
-			if _, err := session.ChannelMessageSendEmbed(message.ChannelID, &embed); err != nil {
-        log.Println("Error sending embed message:", err)
-    	}
+		// Monster Domain
+		if strings.Contains(strings.ToLower(messageArguments[1]), "monster") {
+			handleMonsters(session, message, messageArguments)
 		}
 
 	})
